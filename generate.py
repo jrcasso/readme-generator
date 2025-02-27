@@ -5,24 +5,20 @@ import re
 import json
 import yaml
 import argparse
+import pathspec
 from pathlib import Path
 
-try:
-    import pathspec
-    from pathspec import PathSpec
-except ImportError:
-    pathspec = None
-    PathSpec = Any
 
-def load_global_gitignore(base_dir: str) -> Optional[PathSpec]:
+def load_global_gitignore(base_dir: str) -> Optional[pathspec.PathSpec]:
     gitignore_path = os.path.join(base_dir, '.gitignore')
     if os.path.exists(gitignore_path) and pathspec:
         with open(gitignore_path, 'r', encoding='utf-8') as f:
             patterns = f.read().splitlines()
-        return pathspec.PathSpec.from_lines('gitwildmatch', patterns)
+        return pathspec.pathspec.PathSpec.from_lines('gitwildmatch', patterns)
     return None
 
-def walk_with_gitignore(base_dir: str, global_spec: Optional[PathSpec] = None) -> Iterator[Tuple[str, List[str], List[str]]]:
+
+def walk_with_gitignore(base_dir: str, global_spec: Optional[pathspec.PathSpec] = None) -> Iterator[Tuple[str, List[str], List[str]]]:
     for root, dirs, files in os.walk(base_dir, topdown=True):
         rel_root = os.path.relpath(root, base_dir)
         if global_spec and rel_root != "." and global_spec.match_file(rel_root):
@@ -38,7 +34,8 @@ def walk_with_gitignore(base_dir: str, global_spec: Optional[PathSpec] = None) -
                 with open(local_gitignore, 'r', encoding='utf-8') as f:
                     patterns = f.read().splitlines()
                 if patterns:
-                    local_spec = pathspec.PathSpec.from_lines('gitwildmatch', patterns)
+                    local_spec = pathspec.pathspec.PathSpec.from_lines(
+                        'gitwildmatch', patterns)
             except Exception as e:
                 print(f"Error processing {local_gitignore}: {e}")
         if local_spec:
@@ -46,7 +43,8 @@ def walk_with_gitignore(base_dir: str, global_spec: Optional[PathSpec] = None) -
             files = [f for f in files if not local_spec.match_file(f)]
         yield root, dirs, files
 
-def find_files(base_dir: str, filename_regex: str, global_spec: Optional[PathSpec] = None) -> List[str]:
+
+def find_files(base_dir: str, filename_regex: str, global_spec: Optional[pathspec.PathSpec] = None) -> List[str]:
     matches = []
     pattern = re.compile(filename_regex)
     for root, dirs, files in walk_with_gitignore(base_dir, global_spec):
@@ -55,18 +53,22 @@ def find_files(base_dir: str, filename_regex: str, global_spec: Optional[PathSpe
                 matches.append(os.path.join(root, file))
     return matches
 
+
 def remove_json_comments(text: str) -> str:
     pattern = r'("(?:\\.|[^"\\])*")|(/\*.*?\*/|//.*?$)'
+
     def replacer(match):
         if match.group(1) is not None:
             return match.group(1)
         return ""
-    return re.sub(pattern, replacer, text, flags=re.MULTILINE|re.DOTALL)
+    return re.sub(pattern, replacer, text, flags=re.MULTILINE | re.DOTALL)
+
 
 def remove_trailing_commas(text: str) -> str:
     return re.sub(r',\s*([}\]])', r'\1', text)
 
-def parse_json_file(file_path: str) -> Optional[Union[Dict[str, Any], List[Any]]]:
+
+def parse_json_file(file_path: str) -> Optional[Dict[str, Any]]:
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             return json.load(f)
@@ -84,6 +86,7 @@ def parse_json_file(file_path: str) -> Optional[Union[Dict[str, Any], List[Any]]
         print(f"Error reading {file_path}: {e}")
         return None
 
+
 def parse_yaml_file(file_path: str) -> Optional[Dict[str, Any]]:
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
@@ -91,6 +94,7 @@ def parse_yaml_file(file_path: str) -> Optional[Dict[str, Any]]:
     except Exception as e:
         print(f"Error reading {file_path}: {e}")
         return None
+
 
 def generate_html_table(headers: List[str], rows: List[List[str]]) -> str:
     if not rows:
@@ -103,11 +107,16 @@ def generate_html_table(headers: List[str], rows: List[List[str]]) -> str:
     new_headers = [headers[i] for i in non_empty_cols]
     new_rows = [[row[i] for i in non_empty_cols] for row in rows]
     table = "<table style='border-collapse: collapse;'>"
-    table += "<tr>" + "".join(f"<th style='border: 1px solid #ddd; padding:4px;'>{h}</th>" for h in new_headers) + "</tr>"
+    table += "<tr>" + \
+        "".join(
+            f"<th style='border: 1px solid #ddd; padding:4px;'>{h}</th>" for h in new_headers) + "</tr>"
     for row in new_rows:
-        table += "<tr>" + "".join(f"<td style='border: 1px solid #ddd; padding:4px;'>{cell}</td>" for cell in row) + "</tr>"
+        table += "<tr>" + \
+            "".join(
+                f"<td style='border: 1px solid #ddd; padding:4px;'>{cell}</td>" for cell in row) + "</tr>"
     table += "</table>"
     return table
+
 
 def format_devcontainer_extensions(extensions_list: Optional[List[str]]) -> str:
     if not extensions_list:
@@ -119,6 +128,7 @@ def format_devcontainer_extensions(extensions_list: Optional[List[str]]) -> str:
             link = f'<a href="https://marketplace.visualstudio.com/items?itemName={ext}" target="_blank">{ext}</a>'
             rows.append([ext, link])
     return generate_html_table(["Name", "Store Link"], rows)
+
 
 def format_inputs_table(input_ids: Set[str], input_definitions: Dict[str, Dict[str, Any]]) -> str:
     rows = []
@@ -148,6 +158,7 @@ def format_inputs_table(input_ids: Set[str], input_definitions: Dict[str, Dict[s
             rows.append([input_id, "", ""])
     return generate_html_table(["Name", "Description", "Options"], rows) if rows else ""
 
+
 def format_volumes_table(volumes_list: List[str]) -> str:
     def format_host(host: str) -> str:
         if (host == "."):
@@ -163,11 +174,13 @@ def format_volumes_table(volumes_list: List[str]) -> str:
         rows.append([host, container, mode])
     return generate_html_table(["Host", "Container", "Mode"], rows) if rows else ""
 
+
 def format_env_table(env_filtered: Dict[str, str]) -> str:
     rows = []
     for key in sorted(env_filtered.keys()):
         rows.append([f"`${key}`"])
     return generate_html_table(["Host ENV variable"], rows) if rows else ""
+
 
 def extract_all_input_ids(obj: Any) -> Set[str]:
     found = set()
@@ -181,15 +194,17 @@ def extract_all_input_ids(obj: Any) -> Set[str]:
         found.update(re.findall(r"\$\{input:([^}]+)\}", obj))
     return found
 
+
 def parse_vscode_tasks(file_path: str) -> List[Dict[str, str]]:
     data = parse_json_file(file_path)
-    tasks_info = []
+    tasks_info: List[Dict[str, Any]] = []
     if not data:
         return tasks_info
     input_definitions = {}
     if isinstance(data, dict):
         inputs_list = data.get("inputs", [])
-        input_definitions = {inp.get("id"): inp for inp in inputs_list if "id" in inp}
+        input_definitions = {
+            inp.get("id"): inp for inp in inputs_list if "id" in inp}
         tasks = data.get("tasks", [])
     else:
         tasks = data
@@ -200,7 +215,8 @@ def parse_vscode_tasks(file_path: str) -> List[Dict[str, str]]:
         if command:
             command = f'`{os.path.basename(command)}`'
         input_ids = extract_all_input_ids(task)
-        input_details = format_inputs_table(input_ids, input_definitions) if input_ids else ""
+        input_details = format_inputs_table(
+            input_ids, input_definitions) if input_ids else ""
         tasks_info.append({
             "label": label,
             "detail": detail,
@@ -209,9 +225,10 @@ def parse_vscode_tasks(file_path: str) -> List[Dict[str, str]]:
         })
     return tasks_info
 
+
 def parse_vscode_launch(file_path: str) -> List[Dict[str, str]]:
     data = parse_json_file(file_path)
-    launch_info = []
+    launch_info: List[Dict[str, Any]] = []
     if not data:
         return launch_info
     input_definitions = {}
@@ -219,7 +236,8 @@ def parse_vscode_launch(file_path: str) -> List[Dict[str, str]]:
     if isinstance(data, dict):
         if "inputs" in data:
             inputs_list = data.get("inputs", [])
-            input_definitions = {inp.get("id"): inp for inp in inputs_list if "id" in inp}
+            input_definitions = {
+                inp.get("id"): inp for inp in inputs_list if "id" in inp}
         configurations = data.get("configurations", [])
     else:
         configurations = data
@@ -227,7 +245,8 @@ def parse_vscode_launch(file_path: str) -> List[Dict[str, str]]:
         name = config.get("name", "")
         type_ = config.get("type", "")
         input_ids = extract_all_input_ids(config)
-        input_details = format_inputs_table(input_ids, input_definitions) if input_ids else ""
+        input_details = format_inputs_table(
+            input_ids, input_definitions) if input_ids else ""
         launch_info.append({
             "name": name,
             "type": type_,
@@ -235,9 +254,10 @@ def parse_vscode_launch(file_path: str) -> List[Dict[str, str]]:
         })
     return launch_info
 
+
 def parse_devcontainer(file_path: str) -> Dict[str, str]:
     data = parse_json_file(file_path)
-    dev_info = {}
+    dev_info: Dict[str, Any] = {}
     if not data:
         return dev_info
     customizations = data.get("customizations", {})
@@ -250,6 +270,7 @@ def parse_devcontainer(file_path: str) -> Dict[str, str]:
     dev_info["extensions"] = format_devcontainer_extensions(extensions)
     dev_info["file"] = os.path.relpath(file_path, os.getcwd())
     return dev_info
+
 
 def parse_dockerfile(file_path: str) -> Dict[str, str]:
     base_image = ""
@@ -269,9 +290,10 @@ def parse_dockerfile(file_path: str) -> Dict[str, str]:
         print(f"Error reading Dockerfile {file_path}: {e}")
     return {"base_image": base_image, "exposed_ports": ', '.join(exposed_ports)}
 
-def parse_docker_compose(file_path: str) -> Dict[str, List[Dict[str, Any]]]:
+
+def parse_docker_compose(file_path: str) -> Dict[str, Any]:
     data = parse_yaml_file(file_path)
-    compose_info = {"services": []}
+    compose_info: Dict[str, Any] = {"services": []}
     if not data or "services" not in data:
         return compose_info
     for service_name, service in data["services"].items():
@@ -285,7 +307,8 @@ def parse_docker_compose(file_path: str) -> Dict[str, List[Dict[str, Any]]]:
                     key, val = item.split('=', 1)
                     env_dict[key] = val
             env_vars = env_dict
-        env_filtered = {k: v for k, v in env_vars.items() if isinstance(v, str) and "${" in v}
+        env_filtered = {k: v for k, v in env_vars.items(
+        ) if isinstance(v, str) and "${" in v}
         env_str = format_env_table(env_filtered)
         svc_volumes = service.get("volumes", [])
         volumes_str = format_volumes_table(svc_volumes)
@@ -300,6 +323,7 @@ def parse_docker_compose(file_path: str) -> Dict[str, List[Dict[str, Any]]]:
         })
     return compose_info
 
+
 def generate_markdown_table(headers: List[str], rows: List[List[str]]) -> str:
     md = ""
     md += "| " + " | ".join(headers) + " |\n"
@@ -307,6 +331,7 @@ def generate_markdown_table(headers: List[str], rows: List[List[str]]) -> str:
     for row in rows:
         md += "| " + " | ".join(row) + " |\n"
     return md
+
 
 def update_readme_table(new_section: str, readme_path: str = "README.md") -> None:
     start_marker = "<!-- README_DEVINFO:START -->"
@@ -326,12 +351,15 @@ def update_readme_table(new_section: str, readme_path: str = "README.md") -> Non
         f.write(new_content)
     print(f"Development info updated in {readme_path}")
 
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Parse VS Code and Docker configuration files to generate a markdown summary."
     )
-    parser.add_argument("base_dir", nargs="?", default=".", help="Project root directory")
-    parser.add_argument("--unified", action="store_true", help="Generate a unified table summary")
+    parser.add_argument("base_dir", nargs="?", default=".",
+                        help="Project root directory")
+    parser.add_argument("--unified", action="store_true",
+                        help="Generate a unified table summary")
     args = parser.parse_args()
     base_dir = os.path.abspath(args.base_dir)
     global_spec = load_global_gitignore(base_dir)
@@ -345,16 +373,17 @@ def main() -> None:
         for service in data["services"].values():
             build_prop = service.get("build")
             if isinstance(build_prop, dict) and "dockerfile" in build_prop:
-                dockerfile_path = os.path.join(os.path.dirname(comp_file), build_prop["dockerfile"])
+                dockerfile_path = os.path.join(
+                    os.path.dirname(comp_file), build_prop["dockerfile"])
                 additional_dockerfiles.add(os.path.abspath(dockerfile_path))
 
-    dockerfiles = set(find_files(base_dir, r"Dockerfile", global_spec))
-    dockerfiles = dockerfiles.union(additional_dockerfiles)
-    dockerfiles = list(dockerfiles)
+    dockerfile_set = set(find_files(base_dir, r"Dockerfile", global_spec))
+    dockerfiles = list(dockerfile_set.union(additional_dockerfiles))
 
     tasks_files = find_files(base_dir, r"tasks\.json", global_spec)
     launch_files = find_files(base_dir, r"launch\.json", global_spec)
-    devcontainer_files = find_files(base_dir, r"devcontainer\.json", global_spec)
+    devcontainer_files = find_files(
+        base_dir, r"devcontainer\.json", global_spec)
 
     tasks_data = []
     for file in tasks_files:
@@ -376,7 +405,8 @@ def main() -> None:
     md_content = ""
 
     if compose_data:
-        headers = ["Service", "Image", "Ports", "Volumes", "Injected ENV variables"]
+        headers = ["Service", "Image", "Ports",
+                   "Volumes", "Injected ENV variables"]
         rows = []
         for svc in compose_data.get("services", []):
             rows.append([
@@ -386,7 +416,8 @@ def main() -> None:
                 svc.get("volumes", ""),
                 svc.get("environment", "")
             ])
-        md_content += "## Docker Compose Configurations\n" + generate_markdown_table(headers, rows) + "\n\n"
+        md_content += "## Docker Compose Configurations\n" + \
+            generate_markdown_table(headers, rows) + "\n\n"
 
     if tasks_data:
         headers = ["Name", "Description", "Command", "Inputs"]
@@ -396,7 +427,8 @@ def main() -> None:
             task.get("command", ""),
             task.get("inputs", "")
         ] for task in tasks_data]
-        md_content += "## VS Code Tasks\n" + generate_markdown_table(headers, rows) + "\n\n"
+        md_content += "## VS Code Tasks\n" + \
+            generate_markdown_table(headers, rows) + "\n\n"
 
     if launch_data:
         headers = ["Name", "Type", "Inputs"]
@@ -405,14 +437,16 @@ def main() -> None:
             config.get("type", ""),
             config.get("inputs", "")
         ] for config in launch_data]
-        md_content += "## VS Code Launch Configurations\n" + generate_markdown_table(headers, rows) + "\n\n"
+        md_content += "## VS Code Launch Configurations\n" + \
+            generate_markdown_table(headers, rows) + "\n\n"
 
     if devcontainer_data:
         headers = ["Extensions"]
         rows = [[
             dev.get("extensions", ""),
         ] for dev in devcontainer_data]
-        md_content += "## Devcontainer Configurations\n" + generate_markdown_table(headers, rows) + "\n\n"
+        md_content += "## Devcontainer Configurations\n" + \
+            generate_markdown_table(headers, rows) + "\n\n"
 
     if dockerfile_data:
         headers = ["File", "Base Image", "Exposed Ports"]
@@ -421,20 +455,26 @@ def main() -> None:
             df.get("base_image", ""),
             df.get("exposed_ports", "")
         ] for df in dockerfile_data]
-        md_content += "## Dockerfiles\n" + generate_markdown_table(headers, rows) + "\n\n"
+        md_content += "## Dockerfiles\n" + \
+            generate_markdown_table(headers, rows) + "\n\n"
 
     if args.unified:
         headers = ["Config Type", "Details"]
         rows = [
             ["VS Code Tasks", f"{len(tasks_data)} tasks found"],
-            ["VS Code Launch", f"{len(launch_data)} launch configurations found"],
-            ["Devcontainer", f"{len(devcontainer_data)} devcontainer configs found"],
+            ["VS Code Launch",
+                f"{len(launch_data)} launch configurations found"],
+            ["Devcontainer",
+                f"{len(devcontainer_data)} devcontainer configs found"],
             ["Dockerfiles", f"{len(dockerfile_data)} Dockerfiles found"],
-            ["Docker Compose", f"{len(compose_data)} docker-compose files found"]
+            ["Docker Compose",
+                f"{len(compose_data)} docker-compose files found"]
         ]
-        md_content += "## Unified Configuration Summary\n" + generate_markdown_table(headers, rows) + "\n\n"
+        md_content += "## Unified Configuration Summary\n" + \
+            generate_markdown_table(headers, rows) + "\n\n"
 
     update_readme_table(md_content)
+
 
 if __name__ == "__main__":
     main()
