@@ -372,6 +372,19 @@ def main():
 
     md_content = ""
 
+    if compose_data:
+        headers = ["Service", "Image", "Ports", "Volumes", "Injected ENV variables"]
+        rows = []
+        for svc in compose_data.get("services", []):
+            rows.append([
+                svc.get("service", ""),
+                svc.get("image", ""),
+                svc.get("ports", ""),
+                svc.get("volumes", ""),
+                svc.get("environment", "")
+            ])
+        md_content += "## Docker Compose Configurations\n" + generate_markdown_table(headers, rows) + "\n\n"
+
     if tasks_data:
         headers = ["Name", "Description", "Command", "Inputs"]
         rows = [[
@@ -406,19 +419,6 @@ def main():
             df.get("exposed_ports", "")
         ] for df in dockerfile_data]
         md_content += "## Dockerfiles\n" + generate_markdown_table(headers, rows) + "\n\n"
-
-    if compose_data:
-        headers = ["Service", "Image", "Ports", "Volumes", "Injected ENV variables"]
-        rows = []
-        for svc in compose_data.get("services", []):
-            rows.append([
-                svc.get("service", ""),
-                svc.get("image", ""),
-                svc.get("ports", ""),
-                svc.get("volumes", ""),
-                svc.get("environment", "")
-            ])
-        md_content += "## Docker Compose Configurations\n" + generate_markdown_table(headers, rows) + "\n\n"
 
     if args.unified:
         headers = ["Config Type", "Details"]
