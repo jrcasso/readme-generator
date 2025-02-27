@@ -6,14 +6,12 @@ import yaml
 import argparse
 from pathlib import Path
 
-# Optionally use pathspec to respect .gitignore
 try:
     import pathspec
 except ImportError:
     pathspec = None
 
 def load_global_gitignore(base_dir):
-    """Load the .gitignore file from the project root."""
     gitignore_path = os.path.join(base_dir, '.gitignore')
     if os.path.exists(gitignore_path) and pathspec:
         with open(gitignore_path, 'r', encoding='utf-8') as f:
@@ -22,10 +20,6 @@ def load_global_gitignore(base_dir):
     return None
 
 def walk_with_gitignore(base_dir, global_spec=None):
-    """
-    Walk the directory tree starting at base_dir in top-down mode,
-    applying the global .gitignore (from the project root) and local .gitignore files.
-    """
     for root, dirs, files in os.walk(base_dir, topdown=True):
         rel_root = os.path.relpath(root, base_dir)
         if global_spec and rel_root != "." and global_spec.match_file(rel_root):
@@ -50,10 +44,6 @@ def walk_with_gitignore(base_dir, global_spec=None):
         yield root, dirs, files
 
 def find_files(base_dir, filename_regex, global_spec=None):
-    """
-    Recursively search for files matching the given regex in base_dir,
-    using the walk_with_gitignore generator.
-    """
     matches = []
     pattern = re.compile(filename_regex)
     for root, dirs, files in walk_with_gitignore(base_dir, global_spec):
@@ -63,10 +53,6 @@ def find_files(base_dir, filename_regex, global_spec=None):
     return matches
 
 def remove_json_comments(text):
-    """
-    Remove both inline (//) and block (/* */) comments from JSON text,
-    while preserving string literals.
-    """
     pattern = r'("(?:\\.|[^"\\])*")|(/\*.*?\*/|//.*?$)'
     def replacer(match):
         if match.group(1) is not None:
@@ -75,9 +61,6 @@ def remove_json_comments(text):
     return re.sub(pattern, replacer, text, flags=re.MULTILINE|re.DOTALL)
 
 def remove_trailing_commas(text):
-    """
-    Remove trailing commas from JSON objects and arrays.
-    """
     return re.sub(r',\s*([}\]])', r'\1', text)
 
 def parse_json_file(file_path):
@@ -107,10 +90,6 @@ def parse_yaml_file(file_path):
         return None
 
 def generate_html_table(headers, rows):
-    """
-    Generate an HTML table with the given headers and rows.
-    If all cells in a column are empty, omit that column.
-    """
     if not rows:
         return ""
     num_cols = len(headers)
@@ -128,10 +107,6 @@ def generate_html_table(headers, rows):
     return table
 
 def format_devcontainer_extensions(extensions_list):
-    """
-    Generate an HTML table with columns "Extension" and "Store Link" for each extension.
-    The store link is constructed using the extension ID.
-    """
     if not extensions_list:
         return ""
     rows = []
@@ -143,11 +118,6 @@ def format_devcontainer_extensions(extensions_list):
     return generate_html_table(["Name", "Store Link"], rows)
 
 def format_inputs_table(input_ids, input_definitions):
-    """
-    Generate an HTML table for input details with columns: ID, Description, Options.
-    When an input has an options list, each option is wrapped in backticks individually;
-    if an option equals the default, append ' (Default)' outside the backticks.
-    """
     rows = []
     for input_id in sorted(input_ids):
         if input_id in input_definitions:
@@ -176,10 +146,6 @@ def format_inputs_table(input_ids, input_definitions):
     return generate_html_table(["Name", "Description", "Options"], rows) if rows else ""
 
 def format_volumes_table(volumes_list):
-    """
-    Split each volume string by colon and generate an HTML table with columns:
-    Host, Container, Mode.
-    """
     def format_host(host):
         if (host == "."):
             return "(Project directory)"
@@ -195,19 +161,12 @@ def format_volumes_table(volumes_list):
     return generate_html_table(["Host", "Container", "Mode"], rows) if rows else ""
 
 def format_env_table(env_filtered):
-    """
-    Generate an HTML table for environment variables (only variable names).
-    """
     rows = []
     for key in sorted(env_filtered.keys()):
         rows.append([f"`${key}`"])
     return generate_html_table(["Host ENV variable"], rows) if rows else ""
 
 def extract_all_input_ids(obj):
-    """
-    Recursively scan a JSON object for strings that contain input interpolation
-    of the form ${input:<id>} and return a set of the input IDs.
-    """
     found = set()
     if isinstance(obj, dict):
         for value in obj.values():
@@ -283,7 +242,7 @@ def parse_devcontainer(file_path):
         vscode_custom = customizations.get("vscode", {})
         if isinstance(vscode_custom, dict):
             extensions = vscode_custom.get("extensions", [])
-    # Remove duplicates while preserving order.
+
     extensions = list(dict.fromkeys(extensions))
     dev_info["extensions"] = format_devcontainer_extensions(extensions)
     dev_info["file"] = os.path.relpath(file_path, os.getcwd())
@@ -313,7 +272,7 @@ def parse_docker_compose(file_path):
     if not data or "services" not in data:
         return compose_info
     for service_name, service in data["services"].items():
-        image = service.get("image", "")
+        image = service.get("image", "(custom)")
         ports = service.get("ports", [])
         env_vars = service.get("environment", {})
         if isinstance(env_vars, list):
@@ -334,7 +293,7 @@ def parse_docker_compose(file_path):
             "ports": ', '.join(ports) if ports else "",
             "volumes": volumes_str,
             "environment": env_str,
-            "build": build_prop  # For additional Dockerfile extraction.
+            "build": build_prop
         })
     return compose_info
 
@@ -347,10 +306,6 @@ def generate_markdown_table(headers, rows):
     return md
 
 def update_readme_table(new_section, readme_path="README.md"):
-    """
-    Insert new_section between unique delimiters in the README.
-    If the delimiters exist, replace the enclosed section; otherwise, append it.
-    """
     start_marker = "<!-- README_DEVINFO:START -->"
     end_marker = "<!-- README_DEVINFO:END -->"
     wrapped_section = f"{start_marker}\n{new_section}\n{end_marker}"
@@ -378,22 +333,18 @@ def main():
     base_dir = os.path.abspath(args.base_dir)
     global_spec = load_global_gitignore(base_dir)
 
-    # Process docker-compose files first.
-    compose_files = find_files(base_dir, r"docker-compose\.yml", global_spec)
-    compose_data = []
+    comp_file = "docker-compose.yml"
     additional_dockerfiles = set()
-    for comp_file in compose_files:
-        comp_info = parse_docker_compose(comp_file)
-        comp_info["file"] = os.path.relpath(comp_file, base_dir)
-        compose_data.append(comp_info)
-        data = parse_yaml_file(comp_file)
-        if data and "services" in data:
-            for service in data["services"].values():
-                build_prop = service.get("build")
-                if isinstance(build_prop, dict) and "dockerfile" in build_prop:
-                    dockerfile_path = os.path.join(os.path.dirname(comp_file), build_prop["dockerfile"])
-                    additional_dockerfiles.add(os.path.abspath(dockerfile_path))
-    # Find Dockerfiles in the project.
+    compose_data = parse_docker_compose(comp_file)
+    compose_data["file"] = os.path.relpath(comp_file, base_dir)
+    data = parse_yaml_file(comp_file)
+    if data and "services" in data:
+        for service in data["services"].values():
+            build_prop = service.get("build")
+            if isinstance(build_prop, dict) and "dockerfile" in build_prop:
+                dockerfile_path = os.path.join(os.path.dirname(comp_file), build_prop["dockerfile"])
+                additional_dockerfiles.add(os.path.abspath(dockerfile_path))
+
     dockerfiles = set(find_files(base_dir, r"Dockerfile", global_spec))
     dockerfiles = dockerfiles.union(additional_dockerfiles)
     dockerfiles = list(dockerfiles)
@@ -422,11 +373,10 @@ def main():
     md_content = ""
 
     if tasks_data:
-        headers = ["Label", "Detail", "Type", "Command", "Inputs"]
+        headers = ["Name", "Description", "Command", "Inputs"]
         rows = [[
             task.get("label", ""),
             task.get("detail", ""),
-            task.get("type", ""),
             task.get("command", ""),
             task.get("inputs", "")
         ] for task in tasks_data]
@@ -458,18 +408,16 @@ def main():
         md_content += "## Dockerfiles\n" + generate_markdown_table(headers, rows) + "\n\n"
 
     if compose_data:
-        headers = ["File", "Service", "Image", "Ports", "Volumes", "Injected ENV variables"]
+        headers = ["Service", "Image", "Ports", "Volumes", "Injected ENV variables"]
         rows = []
-        for comp in compose_data:
-            for svc in comp.get("services", []):
-                rows.append([
-                    comp.get("file", ""),
-                    svc.get("service", ""),
-                    svc.get("image", ""),
-                    svc.get("ports", ""),
-                    svc.get("volumes", ""),
-                    svc.get("environment", "")
-                ])
+        for svc in compose_data.get("services", []):
+            rows.append([
+                svc.get("service", ""),
+                svc.get("image", ""),
+                svc.get("ports", ""),
+                svc.get("volumes", ""),
+                svc.get("environment", "")
+            ])
         md_content += "## Docker Compose Configurations\n" + generate_markdown_table(headers, rows) + "\n\n"
 
     if args.unified:
