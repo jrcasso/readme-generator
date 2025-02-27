@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from typing import List, Dict, Set, Optional, Any, Union, Tuple, Iterator
 import os
 import re
 import json
@@ -8,10 +9,12 @@ from pathlib import Path
 
 try:
     import pathspec
+    from pathspec import PathSpec
 except ImportError:
     pathspec = None
+    PathSpec = Any
 
-def load_global_gitignore(base_dir):
+def load_global_gitignore(base_dir: str) -> Optional[PathSpec]:
     gitignore_path = os.path.join(base_dir, '.gitignore')
     if os.path.exists(gitignore_path) and pathspec:
         with open(gitignore_path, 'r', encoding='utf-8') as f:
@@ -19,7 +22,7 @@ def load_global_gitignore(base_dir):
         return pathspec.PathSpec.from_lines('gitwildmatch', patterns)
     return None
 
-def walk_with_gitignore(base_dir, global_spec=None):
+def walk_with_gitignore(base_dir: str, global_spec: Optional[PathSpec] = None) -> Iterator[Tuple[str, List[str], List[str]]]:
     for root, dirs, files in os.walk(base_dir, topdown=True):
         rel_root = os.path.relpath(root, base_dir)
         if global_spec and rel_root != "." and global_spec.match_file(rel_root):
@@ -43,7 +46,7 @@ def walk_with_gitignore(base_dir, global_spec=None):
             files = [f for f in files if not local_spec.match_file(f)]
         yield root, dirs, files
 
-def find_files(base_dir, filename_regex, global_spec=None):
+def find_files(base_dir: str, filename_regex: str, global_spec: Optional[PathSpec] = None) -> List[str]:
     matches = []
     pattern = re.compile(filename_regex)
     for root, dirs, files in walk_with_gitignore(base_dir, global_spec):
@@ -52,7 +55,7 @@ def find_files(base_dir, filename_regex, global_spec=None):
                 matches.append(os.path.join(root, file))
     return matches
 
-def remove_json_comments(text):
+def remove_json_comments(text: str) -> str:
     pattern = r'("(?:\\.|[^"\\])*")|(/\*.*?\*/|//.*?$)'
     def replacer(match):
         if match.group(1) is not None:
@@ -60,10 +63,10 @@ def remove_json_comments(text):
         return ""
     return re.sub(pattern, replacer, text, flags=re.MULTILINE|re.DOTALL)
 
-def remove_trailing_commas(text):
+def remove_trailing_commas(text: str) -> str:
     return re.sub(r',\s*([}\]])', r'\1', text)
 
-def parse_json_file(file_path):
+def parse_json_file(file_path: str) -> Optional[Union[Dict[str, Any], List[Any]]]:
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             return json.load(f)
@@ -81,7 +84,7 @@ def parse_json_file(file_path):
         print(f"Error reading {file_path}: {e}")
         return None
 
-def parse_yaml_file(file_path):
+def parse_yaml_file(file_path: str) -> Optional[Dict[str, Any]]:
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             return yaml.safe_load(f)
@@ -89,7 +92,7 @@ def parse_yaml_file(file_path):
         print(f"Error reading {file_path}: {e}")
         return None
 
-def generate_html_table(headers, rows):
+def generate_html_table(headers: List[str], rows: List[List[str]]) -> str:
     if not rows:
         return ""
     num_cols = len(headers)
@@ -106,7 +109,7 @@ def generate_html_table(headers, rows):
     table += "</table>"
     return table
 
-def format_devcontainer_extensions(extensions_list):
+def format_devcontainer_extensions(extensions_list: Optional[List[str]]) -> str:
     if not extensions_list:
         return ""
     rows = []
@@ -117,7 +120,7 @@ def format_devcontainer_extensions(extensions_list):
             rows.append([ext, link])
     return generate_html_table(["Name", "Store Link"], rows)
 
-def format_inputs_table(input_ids, input_definitions):
+def format_inputs_table(input_ids: Set[str], input_definitions: Dict[str, Dict[str, Any]]) -> str:
     rows = []
     for input_id in sorted(input_ids):
         if input_id in input_definitions:
@@ -145,8 +148,8 @@ def format_inputs_table(input_ids, input_definitions):
             rows.append([input_id, "", ""])
     return generate_html_table(["Name", "Description", "Options"], rows) if rows else ""
 
-def format_volumes_table(volumes_list):
-    def format_host(host):
+def format_volumes_table(volumes_list: List[str]) -> str:
+    def format_host(host: str) -> str:
         if (host == "."):
             return "(Project directory)"
         return host
@@ -160,13 +163,13 @@ def format_volumes_table(volumes_list):
         rows.append([host, container, mode])
     return generate_html_table(["Host", "Container", "Mode"], rows) if rows else ""
 
-def format_env_table(env_filtered):
+def format_env_table(env_filtered: Dict[str, str]) -> str:
     rows = []
     for key in sorted(env_filtered.keys()):
         rows.append([f"`${key}`"])
     return generate_html_table(["Host ENV variable"], rows) if rows else ""
 
-def extract_all_input_ids(obj):
+def extract_all_input_ids(obj: Any) -> Set[str]:
     found = set()
     if isinstance(obj, dict):
         for value in obj.values():
@@ -178,7 +181,7 @@ def extract_all_input_ids(obj):
         found.update(re.findall(r"\$\{input:([^}]+)\}", obj))
     return found
 
-def parse_vscode_tasks(file_path):
+def parse_vscode_tasks(file_path: str) -> List[Dict[str, str]]:
     data = parse_json_file(file_path)
     tasks_info = []
     if not data:
@@ -206,7 +209,7 @@ def parse_vscode_tasks(file_path):
         })
     return tasks_info
 
-def parse_vscode_launch(file_path):
+def parse_vscode_launch(file_path: str) -> List[Dict[str, str]]:
     data = parse_json_file(file_path)
     launch_info = []
     if not data:
@@ -232,7 +235,7 @@ def parse_vscode_launch(file_path):
         })
     return launch_info
 
-def parse_devcontainer(file_path):
+def parse_devcontainer(file_path: str) -> Dict[str, str]:
     data = parse_json_file(file_path)
     dev_info = {}
     if not data:
@@ -248,7 +251,7 @@ def parse_devcontainer(file_path):
     dev_info["file"] = os.path.relpath(file_path, os.getcwd())
     return dev_info
 
-def parse_dockerfile(file_path):
+def parse_dockerfile(file_path: str) -> Dict[str, str]:
     base_image = ""
     exposed_ports = []
     try:
@@ -266,7 +269,7 @@ def parse_dockerfile(file_path):
         print(f"Error reading Dockerfile {file_path}: {e}")
     return {"base_image": base_image, "exposed_ports": ', '.join(exposed_ports)}
 
-def parse_docker_compose(file_path):
+def parse_docker_compose(file_path: str) -> Dict[str, List[Dict[str, Any]]]:
     data = parse_yaml_file(file_path)
     compose_info = {"services": []}
     if not data or "services" not in data:
@@ -297,7 +300,7 @@ def parse_docker_compose(file_path):
         })
     return compose_info
 
-def generate_markdown_table(headers, rows):
+def generate_markdown_table(headers: List[str], rows: List[List[str]]) -> str:
     md = ""
     md += "| " + " | ".join(headers) + " |\n"
     md += "| " + " | ".join(["---"] * len(headers)) + " |\n"
@@ -305,7 +308,7 @@ def generate_markdown_table(headers, rows):
         md += "| " + " | ".join(row) + " |\n"
     return md
 
-def update_readme_table(new_section, readme_path="README.md"):
+def update_readme_table(new_section: str, readme_path: str = "README.md") -> None:
     start_marker = "<!-- README_DEVINFO:START -->"
     end_marker = "<!-- README_DEVINFO:END -->"
     wrapped_section = f"{start_marker}\n{new_section}\n{end_marker}"
@@ -323,7 +326,7 @@ def update_readme_table(new_section, readme_path="README.md"):
         f.write(new_content)
     print(f"Development info updated in {readme_path}")
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Parse VS Code and Docker configuration files to generate a markdown summary."
     )
