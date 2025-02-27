@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-from typing import List, Dict, Set, Optional, Any, Union, Tuple, Iterator
+from typing import List, Dict, Set, Optional, Any, Tuple, Iterator
 import os
 import re
 import json
 import yaml
 import argparse
 import pathspec
-from pathlib import Path
 
 
 def load_global_gitignore(base_dir: str) -> Optional[pathspec.PathSpec]:
@@ -14,7 +13,7 @@ def load_global_gitignore(base_dir: str) -> Optional[pathspec.PathSpec]:
     if os.path.exists(gitignore_path) and pathspec:
         with open(gitignore_path, 'r', encoding='utf-8') as f:
             patterns = f.read().splitlines()
-        return pathspec.pathspec.PathSpec.from_lines('gitwildmatch', patterns)
+        return pathspec.PathSpec.from_lines('gitwildmatch', patterns)
     return None
 
 
@@ -34,7 +33,7 @@ def walk_with_gitignore(base_dir: str, global_spec: Optional[pathspec.PathSpec] 
                 with open(local_gitignore, 'r', encoding='utf-8') as f:
                     patterns = f.read().splitlines()
                 if patterns:
-                    local_spec = pathspec.pathspec.PathSpec.from_lines(
+                    local_spec = pathspec.PathSpec.from_lines(
                         'gitwildmatch', patterns)
             except Exception as e:
                 print(f"Error processing {local_gitignore}: {e}")
